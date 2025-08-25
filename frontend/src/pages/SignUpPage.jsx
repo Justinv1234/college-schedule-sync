@@ -1,8 +1,19 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { User, Mail, Lock, Eye, EyeOff } from "lucide-react";
 
+import {
+  createUserWithEmailAndPassword,
+  updateProfile,
+  signInWithPopup,
+  GoogleAuthProvider,
+} from "firebase/auth";
+import { auth } from "../firebase/firebase.js";
+
+const googleProvider = new GoogleAuthProvider();
+
 export default function SignUpPage() {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -76,10 +87,52 @@ export default function SignUpPage() {
 
     setIsLoading(true);
 
-    setTimeout(() => {
+    try {
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        formData.email,
+        formData.password
+      );
+
+      await updateProfile(userCredential.user, {
+        displayName: `${formData.firstName} ${formData.lastName}`,
+      });
+
+      console.log("User signed up:", userCredential.user);
+      navigate("/dashboard");
+    } catch (error) {
+      console.error("Signup error:", error);
+      let firebaseError = {};
+
+      if (error.code === "auth/email-already-in-use") {
+        firebaseError.email = "This email is already in use";
+      } else if (error.code === "auth/invalid-email") {
+        firebaseError.email = "Invalid email format";
+      } else if (error.code === "auth/weak-password") {
+        firebaseError.password = "Password is too weak";
+      } else {
+        firebaseError.email = "Failed to create account. Try again.";
+      }
+
+      setErrors(firebaseError);
+    } finally {
       setIsLoading(false);
-      console.log("Sign up attempt:", formData);
-    }, 1000);
+    }
+  };
+
+  const handleGoogleSignup = async () => {
+    setIsLoading(true);
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user;
+      console.log("Google sign-up success:", user);
+      // TODO: Redirect user or show success message here
+    } catch (error) {
+      console.error("Google sign-up error:", error.message);
+      setErrors({ email: "Google sign-in failed. Try again." });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -331,14 +384,16 @@ export default function SignUpPage() {
             <div className="mt-6 grid gap-3">
               <button
                 type="button"
-                className="w-full inline-flex justify-center items-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
+                onClick={handleGoogleSignup}
+                disabled={isLoading}
+                className="w-full inline-flex justify-center items-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
               >
                 <img
                   src="https://www.svgrepo.com/show/475656/google-color.svg"
                   alt="Google"
                   className="h-5 w-5 mr-2"
                 />
-                Google
+                Continue with Google
               </button>
             </div>
           </div>
